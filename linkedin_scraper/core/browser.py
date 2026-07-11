@@ -59,11 +59,40 @@ class BrowserManager:
         try:
             self._playwright = await async_playwright().start()
             
-            # Launch browser
+            # Launch browser with normal chrome
+            launch_opts = self.launch_options.copy()
+            if "channel" not in launch_opts:
+                launch_opts["channel"] = "chrome"
+            
+            import os
+            if "executable_path" not in launch_opts and os.path.exists("/usr/bin/google-chrome"):
+                launch_opts["executable_path"] = "/usr/bin/google-chrome"
+                
+            # Add args to bypass sandbox issues in Linux containers (e.g., Crostini/ChromeOS).
+            # --single-process: runs everything in one OS process, prevents "fork: Resource
+            #   temporarily unavailable" in low-nproc container namespaces.
+            # --no-zygote: disables the zygote process model (also reduces forking).
+            aggressive_flags = [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-zygote',
+                '--single-process',
+                '--disable-renderer-backgrounding',
+                '--disable-background-timer-throttling',
+            ]
+            if "args" not in launch_opts:
+                launch_opts["args"] = aggressive_flags
+            else:
+                # Avoid duplicates
+                existing = set(launch_opts["args"])
+                launch_opts["args"] += [f for f in aggressive_flags if f not in existing]
+                
             self._browser = await self._playwright.chromium.launch(
                 headless=self.headless,
                 slow_mo=self.slow_mo,
-                **self.launch_options
+                **launch_opts
             )
             
             logger.info(f"Browser launched (headless={self.headless})")
