@@ -37,7 +37,7 @@ jobs:
         pip install -e .   
     - name: Run Pytest (Run all the backend tests)
       run: |
-        pytest tests/ test_api_scraper.py test_db_conn.py
+        pytest tests/
 
   # --- JOB 2: Build the React Frontend ---
   build-frontend:
