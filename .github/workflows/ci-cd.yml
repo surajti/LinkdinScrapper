@@ -1,0 +1,63 @@
+# 1. The name of your pipeline
+name: LinkedIn Scraper CI Pipeline
+
+# 2. "on" determines WHEN this pipeline runs. 
+# We want it to run every time you push code to the 'main' branch.
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+# 3. "jobs" are the actual tasks the server will do.
+jobs:
+
+  # --- JOB 1: Test the Python Backend ---
+  test-backend:
+    # We tell GitHub to give us a fresh Ubuntu Linux server
+    runs-on: ubuntu-latest
+    
+    # "steps" are the sequential commands run on that server
+    steps:
+    - name: Get the code from the repository
+      uses: actions/checkout@v4
+    
+    - name: Install Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest httpx
+        
+    - name: Run Pytest (Run all the backend tests)
+      run: |
+        pytest tests/ test_api_scraper.py test_db_conn.py
+
+  # --- JOB 2: Build the React Frontend ---
+  build-frontend:
+    runs-on: ubuntu-latest
+    
+    # We tell this job to always run inside the frontend folder
+    defaults:
+      run:
+        working-directory: ./frontend/job-scraper-frontend
+        
+    steps:
+    - name: Get the code
+      uses: actions/checkout@v4
+    
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        
+    - name: Install Frontend Dependencies
+      run: npm install
+      
+    - name: Check if frontend builds successfully
+      run: npm run build
+
