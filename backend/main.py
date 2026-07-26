@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
  
-from .database import get_db
+from .database import get_db, engine, Base
 from .models import ProcessedJob, DeletedJob
  
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +30,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+ 
+ 
+@app.on_event("startup")
+async def _create_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables verified/created.")
  
 # ------------------ MODELS ------------------
  
@@ -468,10 +475,20 @@ async def search(req: SearchRequest, db: AsyncSession = Depends(get_db)):
         if not urls:
             return []
  
-        # Filter already-seen URLs — run DB queries sequentially since SQLAlchemy sessions do not support concurrent operations
-        done_q = await db.execute(select(ProcessedJob.linkedin_url).where(ProcessedJob.linkedin_url.in_(urls)))
-        del_q = await db.execute(select(DeletedJob.linkedin_url).where(DeletedJob.linkedin_url.in_(urls)))
-        skip_urls = set(done_q.scalars().all()) | set(del_q.scalars().all())
+        # Filter already-seen URLs — batch IN clauses to stay within
+        # SQLite's 999 bind-variable limit per query.
+        _BATCH = 500
+        skip_urls: set[str] = set()
+        for i in range(0, len(urls), _BATCH):
+            batch = urls[i : i + _BATCH]
+            done_q = await db.execute(
+                select(ProcessedJob.linkedin_url).where(ProcessedJob.linkedin_url.in_(batch))
+            )
+            del_q = await db.execute(
+                select(DeletedJob.linkedin_url).where(DeletedJob.linkedin_url.in_(batch))
+            )
+            skip_urls.update(done_q.scalars().all())
+            skip_urls.update(del_q.scalars().all())
         urls_to_fetch = [u for u in urls if u not in skip_urls]
  
         if not urls_to_fetch:
