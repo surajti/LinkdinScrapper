@@ -72,8 +72,9 @@ jobs:
       uses: actions/checkout@v4
     - name: Create deployment folder
       run: |
-        mkdir -p deployment
-        cp -r . deployment/
+        mkdir -p ../deployment
+        cp -r . ../deployment/
+        mv ../deployment .
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
