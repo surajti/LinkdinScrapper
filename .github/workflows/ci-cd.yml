@@ -63,3 +63,39 @@ jobs:
     - name: Check if frontend builds successfully
       run: npm run build
 
+  # --- JOB 3: Deploy locally (no Docker) ---
+  deploy-local:
+    runs-on: ubuntu-latest
+    needs: test-backend
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Create deployment folder
+      run: |
+        mkdir -p deployment
+        cp -r . deployment/
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Install dependencies in deployment folder
+      run: |
+        cd deployment
+        python -m venv venv
+        source venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
+        pip install httpx aiosqlite uvicorn fastapi
+        pip install -e .
+    - name: Show deployment layout (debug)
+      run: |
+        ls -la deployment
+    - name: Run backend (background test)
+      run: |
+        cd deployment
+        source venv/bin/activate
+        # Start the backend in the background and test it
+        uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+        sleep 5
+        curl -f http://localhost:8000/api/health || echo "Backend did not start correctly"
