@@ -91,6 +91,8 @@ jobs:
         pip install -e .
     - name: Show deployment layout (debug)
       run: |
+        echo "The current working directory is: $(pwd)"
+        echo "The deployment folder is located at: $(readlink -f deployment)"
         ls -la deployment
     - name: Run backend (background test)
       run: |
